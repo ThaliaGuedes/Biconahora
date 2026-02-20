@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, MessageCircle, LogOut, Search } from 'lucide-react';
+import { Settings, MessageCircle, LogOut, Search, Edit } from 'lucide-react';
 import { useApp } from '@/app/context/AppContext';
 import { EmployerProfile, Connection, ChatMessage } from '@/app/types';
 import { ProfileSettings } from '@/app/components/ProfileSettings';
 import { FreelancerCard } from '@/app/components/FreelancerCard';
 import { SearchFilters } from '@/app/components/SearchFilters';
 import { ChatWindow } from '@/app/components/ChatWindow';
+import { EditEmployerProfile } from '@/app/components/EditEmployerProfile';
+import { Toaster } from '@/app/components/ui/sonner';
 
 export const EmployerPage = () => {
   const navegar = useNavigate();
@@ -25,6 +27,7 @@ export const EmployerPage = () => {
   const [cidadeBusca, setCidadeBusca] = useState('');
   const [conexoes, setConexoes] = useState<string[]>([]);
   const [chatSelecionado, setChatSelecionado] = useState<string | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const usuarioContratante = currentUser as EmployerProfile;
 
@@ -39,6 +42,11 @@ export const EmployerPage = () => {
       setCurrentUser({ ...usuarioContratante, ...atualizacoes });
     }
   };
+
+  // Verificar se o usuário está autenticado
+  if (!usuarioContratante || userType !== 'employer') {
+    return null;
+  }
 
   // Filtros
   const freelancersFiltrados = freelancers.filter((freelancer) => {
@@ -101,10 +109,6 @@ export const EmployerPage = () => {
     );
   };
 
-  if (!usuarioContratante || userType !== 'employer') {
-    return null;
-  }
-
   // Obter status de conexão para cada freelancer
   const obterStatusConexao = (freelancerId: string) => {
     const conexao = connections.find(
@@ -126,7 +130,7 @@ export const EmployerPage = () => {
       {/* Cabeçalho */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-purple-700">Bico na Hora</h1>
+          <h1 className="text-2xl font-bold text-purple-700">FreelaJá</h1>
           <button
             onClick={sair}
             className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
@@ -271,6 +275,13 @@ export const EmployerPage = () => {
                 </div>
               </div>
             </div>
+            <button
+              onClick={() => setIsEditModalOpen(true)}
+              className="mt-4 bg-purple-500 hover:bg-purple-600 text-white rounded-lg py-2 px-4 font-semibold transition flex items-center gap-2 max-w-2xl mx-auto"
+            >
+              <Edit size={16} />
+              Editar Perfil
+            </button>
           </div>
         )}
 
@@ -343,6 +354,15 @@ export const EmployerPage = () => {
           </div>
         )}
       </div>
+
+      {/* Modal de Edição de Perfil */}
+      <EditEmployerProfile
+        user={usuarioContratante}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={atualizarPerfil}
+      />
+      <Toaster />
     </div>
   );
 };

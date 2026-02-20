@@ -1,24 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import { Users, Briefcase } from 'lucide-react';
 import { useApp } from '@/app/context/AppContext';
-import { mockFreelancers, mockEmployers } from '@/app/data/mockData';
 
-export const HomePage = () => {
+export const LandingPage = () => {
   const navigate = useNavigate();
-  const { setUserType, setFreelancers, setEmployers, setCurrentUser } = useApp();
+  const { setUserIntent } = useApp();
 
-  const handleSelectUserType = (type: 'freelancer' | 'employer') => {
-    setUserType(type);
-    setFreelancers(mockFreelancers);
-    setEmployers(mockEmployers);
-
-    if (type === 'freelancer') {
-      setCurrentUser(mockFreelancers[0]);
-      navigate('/freelancer');
-    } else {
-      setCurrentUser(mockEmployers[0]);
-      navigate('/employer');
-    }
+  const handleSelectIntent = (intent: 'freelancer' | 'employer') => {
+    setUserIntent(intent);
+    navigate('/auth');
   };
 
   return (
@@ -26,7 +16,7 @@ export const HomePage = () => {
       <div className="max-w-4xl w-full">
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-purple-800 mb-4">
-            Bico na Hora
+            FreelaJá
           </h1>
           <p className="text-xl text-gray-800">
             Conecte quem precisa de um bico com quem oferece – Encontre, Combine e trabalhe na hora!
@@ -36,14 +26,14 @@ export const HomePage = () => {
         <div className="grid md:grid-cols-2 gap-6">
           {/* Freelancer Card */}
           <button
-            onClick={() => handleSelectUserType('freelancer')}
+            onClick={() => handleSelectIntent('freelancer')}
             className="bg-white rounded-2xl p-8 shadow-2xl hover:shadow-3xl transition-all hover:scale-105 group"
           >
             <div className="flex flex-col items-center">
               <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
                 <Users className="text-blue-600" size={40} />
               </div>
-              <h2 className="text-2xl mb-2 text-purple-800">Quero trabalhar como freelancer</h2>
+              <h2 className="text-2xl mb-2 text-purple-800">Quero trabalhar</h2>
               <p className="text-gray-700 text-center">
                 Encontre oportunidades de bico e fale com contratantes
               </p>
@@ -66,7 +56,7 @@ export const HomePage = () => {
 
           {/* Employer Card */}
           <button
-            onClick={() => handleSelectUserType('employer')}
+            onClick={() => handleSelectIntent('employer')}
             className="bg-white rounded-2xl p-8 shadow-2xl hover:shadow-3xl transition-all hover:scale-105 group"
           >
             <div className="flex flex-col items-center">
@@ -96,7 +86,7 @@ export const HomePage = () => {
         </div>
 
         <div className="mt-8 text-center text-purple-900/80 text-sm font-medium">
-          <p>Teste à vontade! Os perfis e dados do Bico na Hora são fictícios nesta demonstração, aproveite para conhecer todas as possibilidades da plataforma.</p>
+          <p>Teste à vontade! Os perfis e dados do FreelaJá são fictícios nesta demonstração, aproveite para conhecer todas as possibilidades da plataforma.</p>
         </div>
       </div>
     </div>

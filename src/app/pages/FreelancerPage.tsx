@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, MessageCircle, LogOut, User, Bell } from 'lucide-react';
+import { Settings, MessageCircle, LogOut, User, Bell, Edit } from 'lucide-react';
 import { useApp } from '@/app/context/AppContext';
 import { FreelancerProfile } from '@/app/types';
 import { ProfileSettings } from '@/app/components/ProfileSettings';
 import { StarRating } from '@/app/components/StarRating';
+import { EditFreelancerProfile } from '@/app/components/EditFreelancerProfile';
+import { Toaster } from '@/app/components/ui/sonner';
 
 export const FreelancerPage = () => {
   const navigate = useNavigate();
   const { currentUser, setCurrentUser, userType, setUserType, connections, setConnections, employers } = useApp();
   const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'messages' | 'notifications'>('profile');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const freelancerUser = currentUser as FreelancerProfile;
 
   const handleLogout = () => {
@@ -23,6 +26,11 @@ export const FreelancerPage = () => {
       setCurrentUser({ ...freelancerUser, ...updates });
     }
   };
+
+  // Verificar se o usuário está autenticado
+  if (!freelancerUser || userType !== 'freelancer') {
+    return null;
+  }
 
   // Aceitar solicitação de conexão
   const aceitarSolicitacao = (connectionId: string) => {
@@ -47,16 +55,12 @@ export const FreelancerPage = () => {
     (c) => c.freelancerId === freelancerUser.id && c.status === 'pending'
   );
 
-  if (!freelancerUser || userType !== 'freelancer') {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-yellow-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-purple-700">Bico na Hora</h1>
+          <h1 className="text-2xl font-bold text-purple-700">FreelaJá</h1>
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
@@ -193,6 +197,13 @@ export const FreelancerPage = () => {
                 </div>
               </div>
             </div>
+            <button
+              onClick={() => setIsEditModalOpen(true)}
+              className="mt-6 bg-purple-500 hover:bg-purple-600 text-white py-2 px-4 rounded-lg font-semibold transition flex items-center justify-center gap-2 w-full"
+            >
+              <Edit size={16} />
+              Editar Perfil
+            </button>
           </div>
         )}
         {activeTab === 'settings' && (
@@ -275,6 +286,14 @@ export const FreelancerPage = () => {
           </div>
         )}
       </div>
+      {/* Edit Modal */}
+      <EditFreelancerProfile
+        user={freelancerUser}
+        isOpen={isEditModalOpen}
+        onSave={handleUpdateProfile}
+        onClose={() => setIsEditModalOpen(false)}
+      />
+      <Toaster />
     </div>
   );
 };
