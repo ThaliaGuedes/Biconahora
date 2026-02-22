@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, MessageCircle, LogOut, User, Bell, Edit } from 'lucide-react';
+import { Settings, MessageCircle, LogOut, User, Edit } from 'lucide-react';
 import { useApp } from '@/app/context/AppContext';
-import { FreelancerProfile } from '@/app/types';
+import { FreelancerProfile, ChatMessage } from '@/app/types';
 import { ProfileSettings } from '@/app/components/ProfileSettings';
 import { StarRating } from '@/app/components/StarRating';
 import { EditFreelancerProfile } from '@/app/components/EditFreelancerProfile';
+import { ChatWindow } from '@/app/components/ChatWindow';
 import { Toaster } from '@/app/components/ui/sonner';
 
 export const FreelancerPage = () => {
   const navigate = useNavigate();
   const { currentUser, setCurrentUser, userType, setUserType, connections, setConnections, employers } = useApp();
-  const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'messages' | 'notifications'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'messages'>('profile');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [chatSelecionado, setChatSelecionado] = useState<string | null>(null);
   const freelancerUser = currentUser as FreelancerProfile;
 
   const handleLogout = () => {
@@ -32,28 +34,33 @@ export const FreelancerPage = () => {
     return null;
   }
 
-  // Aceitar solicitação de conexão
-  const aceitarSolicitacao = (connectionId: string) => {
+  // Enviar mensagem
+  const enviarMensagem = (texto: string) => {
+    if (!chatSelecionado) return;
+    const conexao = connections.find(
+      (c) => c.employerId === chatSelecionado && c.freelancerId === freelancerUser.id
+    );
+    if (!conexao) return;
+    const novaMensagem: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      senderId: freelancerUser.id,
+      text: texto,
+      timestamp: new Date(),
+    };
     setConnections((prev) =>
       prev.map((c) =>
-        c.id === connectionId ? { ...c, status: 'accepted' as const } : c
+        c.id === conexao.id ? { ...c, messages: [...c.messages, novaMensagem] } : c
       )
     );
   };
 
-  // Rejeitar solicitação de conexão
-  const rejeitarSolicitacao = (connectionId: string) => {
-    setConnections((prev) =>
-      prev.map((c) =>
-        c.id === connectionId ? { ...c, status: 'rejected' as const } : c
-      )
+  // Obter empregadores conectados
+  const empregadoresConectados = employers.filter((e) => {
+    const conexao = connections.find(
+      (c) => c.employerId === e.id && c.freelancerId === freelancerUser.id
     );
-  };
-
-  // Obter solicitações pendentes
-  const solicitacoesPendentes = connections.filter(
-    (c) => c.freelancerId === freelancerUser.id && c.status === 'pending'
-  );
+    return !!conexao;
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-yellow-50">
@@ -102,7 +109,7 @@ export const FreelancerPage = () => {
             </button>
             <button
               onClick={() => setActiveTab('messages')}
-              className={`py-4 px-2 border-b-2 transition-colors ${
+              className={`py-4 px-2 border-b-2 transition-colors relative ${
                 activeTab === 'messages'
                   ? 'border-purple-500 text-purple-600'
                   : 'border-transparent text-gray-600 hover:text-gray-800'
@@ -111,22 +118,9 @@ export const FreelancerPage = () => {
               <div className="flex items-center gap-2">
                 <MessageCircle size={20} />
                 <span>Mensagens</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('notifications')}
-              className={`py-4 px-2 border-b-2 transition-colors relative ${
-                activeTab === 'notifications'
-                  ? 'border-purple-500 text-purple-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Bell size={20} />
-                <span>Notificações</span>
-                {solicitacoesPendentes.length > 0 && (
+                {empregadoresConectados.length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                    {solicitacoesPendentes.length}
+                    {empregadoresConectados.length}
                   </span>
                 )}
               </div>
@@ -214,75 +208,72 @@ export const FreelancerPage = () => {
           />
         )}
         {activeTab === 'messages' && (
-          <div className="bg-white rounded-lg shadow-md p-8 text-center">
-            <MessageCircle size={48} className="mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600">Nenhuma mensagem ainda</p>
-            <p className="text-sm text-gray-500 mt-2">
-              Os contratantes podem iniciar o chat após se conectarem com você
-            </p>
-          </div>
-        )}
-        {activeTab === 'notifications' && (
-          <div className="max-w-2xl mx-auto">
-            <h2 className="text-2xl mb-6 text-purple-700">Solicitações de Conexão</h2>
-            {solicitacoesPendentes.length === 0 ? (
-              <div className="bg-white rounded-lg shadow-md p-8 text-center">
-                <Bell size={48} className="mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600">Nenhuma solicitação pendente</p>
-                <p className="text-sm text-gray-500 mt-2">
-                  Quando um contratante quiser se conectar com você, você receberá uma notificação aqui
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Lista de Conversas */}
+            <div className="bg-white rounded-lg shadow-md p-4 border border-yellow-100">
+              <h3 className="text-lg mb-4 text-purple-700">
+                Conversas ({empregadoresConectados.length})
+              </h3>
+              {empregadoresConectados.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-8">
+                  Nenhuma mensagem ainda
                 </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {solicitacoesPendentes.map((solicitacao) => {
-                  const empregador = employers.find((e) => e.id === solicitacao.employerId);
-                  if (!empregador) return null;
-                  
-                  return (
-                    <div
-                      key={solicitacao.id}
-                      className="bg-white rounded-lg shadow-md p-6 border-2 border-purple-200"
+              ) : (
+                <div className="space-y-2">
+                  {empregadoresConectados.map((empregador) => (
+                    <button
+                      key={empregador.id}
+                      onClick={() => setChatSelecionado(empregador.id)}
+                      className={`w-full p-3 rounded-lg text-left transition-colors ${
+                        chatSelecionado === empregador.id
+                          ? 'bg-purple-100'
+                          : 'bg-yellow-50 hover:bg-yellow-100'
+                      }`}
                     >
-                      <div className="flex items-start gap-4">
+                      <div className="flex items-center gap-3">
                         <img
                           src={empregador.photo}
                           alt={empregador.name}
-                          className="w-16 h-16 rounded-full object-cover"
+                          className="w-10 h-10 rounded-full"
                         />
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-purple-900">{empregador.name}</h3>
-                          <p className="text-sm text-gray-600 mb-1">{empregador.businessName}</p>
-                          <p className="text-sm text-gray-500 mb-1">
-                            📍 {empregador.businessAddress}
-                          </p>
-                          <p className="text-sm text-purple-600 font-medium">
-                            💰 R${empregador.dailyRate}/dia
-                          </p>
-                          <p className="text-xs text-gray-400 mt-2">
-                            Solicitou conexão com você
-                          </p>
+                        <div>
+                          <p className="text-sm">{empregador.name}</p>
+                          <p className="text-xs text-gray-500">{empregador.businessName}</p>
                         </div>
                       </div>
-                      <div className="flex gap-3 mt-4">
-                        <button
-                          onClick={() => aceitarSolicitacao(solicitacao.id)}
-                          className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg font-semibold transition"
-                        >
-                          ✓ Aceitar
-                        </button>
-                        <button
-                          onClick={() => rejeitarSolicitacao(solicitacao.id)}
-                          className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg font-semibold transition"
-                        >
-                          ✗ Rejeitar
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Janela de Chat */}
+            <div className="md:col-span-2">
+              {chatSelecionado ? (
+                <div className="h-[600px]">
+                  <ChatWindow
+                    messages={
+                      connections.find((c) => c.employerId === chatSelecionado)?.messages || []
+                    }
+                    currentUserId={freelancerUser.id}
+                    otherUserName={
+                      employers.find((e) => e.id === chatSelecionado)?.name || 'Contratante'
+                    }
+                    onSendMessage={enviarMensagem}
+                  />
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg shadow-md p-8 text-center h-[600px] flex items-center justify-center border border-purple-100">
+                  <div>
+                    <MessageCircle size={48} className="mx-auto text-gray-400 mb-4" />
+                    <p className="text-gray-600">Selecione uma conversa</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Os contratantes podem iniciar conversas com você diretamente
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

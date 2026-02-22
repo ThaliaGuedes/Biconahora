@@ -70,23 +70,27 @@ export const EmployerPage = () => {
 
   // Conectar com freelancer
   const conectarFreelancer = (freelancerId: string) => {
-    // Verifica se já existe uma solicitação
-    const solicitacaoExistente = connections.find(
+    // Verifica se já existe uma conexão
+    const conexaoExistente = connections.find(
       (c) => c.freelancerId === freelancerId && c.employerId === usuarioContratante.id
     );
     
-    if (!solicitacaoExistente) {
-      // Cria nova solicitação pendente
+    if (!conexaoExistente) {
+      // Cria nova conexão já aceita automaticamente
       const novaConexao: Connection = {
         id: `conn-${Date.now()}`,
         freelancerId,
         employerId: usuarioContratante.id,
-        status: 'pending',
+        status: 'accepted',
         messages: [],
         createdAt: new Date(),
       };
       setConnections((prev) => [...prev, novaConexao]);
     }
+    
+    // Abre o chat automaticamente
+    setChatSelecionado(freelancerId);
+    setAbaAtiva('mensagens');
   };
 
   // Enviar mensagem
@@ -114,13 +118,13 @@ export const EmployerPage = () => {
     const conexao = connections.find(
       (c) => c.freelancerId === freelancerId && c.employerId === usuarioContratante.id
     );
-    return conexao?.status || null;
+    return conexao ? true : false;
   };
 
-  // Apenas conexões aceitas para mensagens
+  // Apenas conexes aceitas para mensagens
   const freelancersConectados = freelancers.filter((f) => {
     const conexao = connections.find(
-      (c) => c.freelancerId === f.id && c.employerId === usuarioContratante.id && c.status === 'accepted'
+      (c) => c.freelancerId === f.id && c.employerId === usuarioContratante.id
     );
     return !!conexao;
   });
@@ -214,7 +218,7 @@ export const EmployerPage = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
                 {freelancersFiltrados.map((freelancer) => {
-                  const statusConexao = obterStatusConexao(freelancer.id);
+                  const jaConectado = obterStatusConexao(freelancer.id);
                   return (
                     <div
                       key={freelancer.id}
@@ -223,24 +227,14 @@ export const EmployerPage = () => {
                       <FreelancerCard freelancer={freelancer} />
                       <button
                         onClick={() => conectarFreelancer(freelancer.id)}
-                        disabled={statusConexao !== null}
-                        className={`mt-4 rounded-lg py-2 font-semibold transition ${
-                          statusConexao === 'accepted'
-                            ? 'bg-green-100 text-green-700 border-2 border-green-300 cursor-default'
-                            : statusConexao === 'pending'
-                            ? 'bg-yellow-100 text-yellow-700 border-2 border-yellow-300 cursor-default'
-                            : statusConexao === 'rejected'
-                            ? 'bg-red-100 text-red-700 border-2 border-red-300 cursor-default'
+                        className={`mt-4 rounded-lg py-2 font-semibold transition flex items-center justify-center gap-2 ${
+                          jaConectado
+                            ? 'bg-purple-100 text-purple-700 border-2 border-purple-300 hover:bg-purple-200'
                             : 'bg-purple-500 hover:bg-purple-600 text-white'
                         }`}
                       >
-                        {statusConexao === 'accepted'
-                          ? '✓ Aceito'
-                          : statusConexao === 'pending'
-                          ? '⏱ Aguardando Resposta'
-                          : statusConexao === 'rejected'
-                          ? '✗ Recusado'
-                          : 'Conectar'}
+                        <MessageCircle size={18} />
+                        {jaConectado ? 'Ver Conversa' : 'Enviar Mensagem'}
                       </button>
                     </div>
                   );
