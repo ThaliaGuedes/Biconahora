@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, MessageCircle, LogOut, Search, Edit } from 'lucide-react';
 import { useApp } from '@/app/context/AppContext';
-import { EmployerProfile, Connection, ChatMessage } from '@/app/types';
+import { EmployerProfile } from '@/app/types';
 import { ProfileSettings } from '@/app/components/ProfileSettings';
 import { FreelancerCard } from '@/app/components/FreelancerCard';
 import { SearchFilters } from '@/app/components/SearchFilters';
 import { ChatWindow } from '@/app/components/ChatWindow';
 import { EditEmployerProfile } from '@/app/components/EditEmployerProfile';
-import { Toaster } from '@/app/components/ui/sonner';
+import { Toaster, toast } from 'sonner';
+import authService from '@/app/services/auth.service';
+import connectionService from '@/app/services/connection.service';
+import websocketService from '@/app/services/websocket.service';
+import employerService from '@/app/services/employer.service';
 
 export const EmployerPage = () => {
   const navegar = useNavigate();
@@ -20,26 +24,84 @@ export const EmployerPage = () => {
     setUserType,
     connections,
     setConnections,
+    loadFreelancers,
+    loadConnections,
   } = useApp();
 
   const [abaAtiva, setAbaAtiva] = useState<'lista' | 'configuracoes' | 'mensagens'>('lista');
   const [habilidadesSelecionadas, setHabilidadesSelecionadas] = useState<string[]>([]);
   const [cidadeBusca, setCidadeBusca] = useState('');
-  const [conexoes, setConexoes] = useState<string[]>([]);
   const [chatSelecionado, setChatSelecionado] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const usuarioContratante = currentUser as EmployerProfile;
 
+  // Carregar freelancers e conexões ao montar
+  useEffect(() => {
+    if (usuarioContratante) {
+      loadFreelancers();
+      loadConnections();
+    }
+  }, [usuarioContratante]);
+
+  // Conectar WebSocket quando selecionar um chat
+  useEffect(() => {
+    if (chatSelecionado && usuarioContratante) {
+      const conexao = connections.find((c) => c.freelancerId === chatSelecionado);
+      if (conexao) {
+        const token = localStorage.getItem('token');
+        if (token) {
+          websocketService.connect(conexao.id, token);
+
+          // Ouvir mensagens em tempo real
+          websocketService.onMessage((message) => {
+            setConnections((prev) =>
+              prev.map((c) =>
+                c.id === conexao.id
+                  ? {
+                      ...c,
+                      messages: [
+                        ...c.messages,
+                        {
+                          id: message.message_id || `msg-${Date.now()}`,
+                          senderId: message.sender_id,
+                          text: message.message,
+                          timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
+                        },
+                      ],
+                    }
+                  : c
+              )
+            );
+          });
+        }
+      }
+
+      return () => {
+        websocketService.disconnect();
+      };
+    }
+  }, [chatSelecionado]);
+
   const sair = () => {
+    authService.logout();
     setUserType(null);
     setCurrentUser(null);
+    websocketService.disconnect();
     navegar('/');
   };
 
-  const atualizarPerfil = (atualizacoes: Partial<EmployerProfile>) => {
-    if (usuarioContratante) {
-      setCurrentUser({ ...usuarioContratante, ...atualizacoes });
+  const atualizarPerfil = async (atualizacoes: Partial<EmployerProfile>) => {
+    if (!usuarioContratante) return;
+
+    try {
+      const updated = await employerService.updateEmployer(usuarioContratante.id, atualizacoes);
+      setCurrentUser(updated);
+      toast.success('Perfil atualizado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao atualizar perfil:', error);
+      toast.error('Erro ao atualizar perfil');
     }
   };
 
@@ -69,25 +131,32 @@ export const EmployerPage = () => {
   };
 
   // Conectar com freelancer
-  const conectarFreelancer = (freelancerId: string) => {
+  const conectarFreelancer = async (freelancerId: string) => {
     // Verifica se já existe uma conexão
     const conexaoExistente = connections.find(
       (c) => c.freelancerId === freelancerId && c.employerId === usuarioContratante.id
     );
-    
+
     if (!conexaoExistente) {
-      // Cria nova conexão já aceita automaticamente
-      const novaConexao: Connection = {
-        id: `conn-${Date.now()}`,
-        freelancerId,
-        employerId: usuarioContratante.id,
-        status: 'accepted',
-        messages: [],
-        createdAt: new Date(),
-      };
-      setConnections((prev) => [...prev, novaConexao]);
+      setLoading(true);
+      try {
+        // Cria nova conexão no backend (já vem como 'accepted')
+        const novaConexao = await connectionService.createConnection(
+          freelancerId,
+          usuarioContratante.id
+        );
+        setConnections((prev) => [...prev, novaConexao]);
+        toast.success('Conexão criada! Você já pode enviar mensagens.');
+      } catch (error) {
+        console.error('Erro ao criar conexão:', error);
+        toast.error('Erro ao criar conexão');
+        setLoading(false);
+        return;
+      } finally {
+        setLoading(false);
+      }
     }
-    
+
     // Abre o chat automaticamente
     setChatSelecionado(freelancerId);
     setAbaAtiva('mensagens');
@@ -95,22 +164,10 @@ export const EmployerPage = () => {
 
   // Enviar mensagem
   const enviarMensagem = (texto: string) => {
-    if (!chatSelecionado) return;
-    const conexao = connections.find((c) => c.freelancerId === chatSelecionado);
-    if (!conexao) return;
-    const novaMensagem: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      senderId: usuarioContratante.id,
-      text: texto,
-      timestamp: new Date(),
-    };
-    setConnections((prev) =>
-      prev.map((c) =>
-        c.id === conexao.id
-          ? { ...c, messages: [...c.messages, novaMensagem] }
-          : c
-      )
-    );
+    if (!chatSelecionado || !usuarioContratante) return;
+
+    // Enviar via WebSocket
+    websocketService.sendMessage(texto, usuarioContratante.id);
   };
 
   // Obter status de conexão para cada freelancer
@@ -121,7 +178,7 @@ export const EmployerPage = () => {
     return conexao ? true : false;
   };
 
-  // Apenas conexes aceitas para mensagens
+  // Apenas conexões aceitas para mensagens
   const freelancersConectados = freelancers.filter((f) => {
     const conexao = connections.find(
       (c) => c.freelancerId === f.id && c.employerId === usuarioContratante.id
@@ -186,9 +243,9 @@ export const EmployerPage = () => {
               <div className="flex items-center gap-2">
                 <MessageCircle size={20} />
                 <span>Mensagens</span>
-                {conexoes.length > 0 && (
+                {freelancersConectados.length > 0 && (
                   <span className="absolute -top-1 -right-1 bg-yellow-400 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                    {conexoes.length}
+                    {freelancersConectados.length}
                   </span>
                 )}
               </div>
@@ -227,11 +284,12 @@ export const EmployerPage = () => {
                       <FreelancerCard freelancer={freelancer} />
                       <button
                         onClick={() => conectarFreelancer(freelancer.id)}
+                        disabled={loading}
                         className={`mt-4 rounded-lg py-2 font-semibold transition flex items-center justify-center gap-2 ${
                           jaConectado
                             ? 'bg-purple-100 text-purple-700 border-2 border-purple-300 hover:bg-purple-200'
                             : 'bg-purple-500 hover:bg-purple-600 text-white'
-                        }`}
+                        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <MessageCircle size={18} />
                         {jaConectado ? 'Ver Conversa' : 'Enviar Mensagem'}
